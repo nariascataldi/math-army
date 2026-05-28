@@ -52,24 +52,23 @@ class MathProblem {
     final Set<int> options = {correctResult, wrongResult};
     final random = Random();
 
-    // Generar una tercera opción incorrecta cercana al resultado correcto
-    int thirdOption;
-    int attempts = 0;
-    do {
-      final offset = (correctResult * 0.2).toInt().clamp(1, 20);
-      thirdOption = correctResult + random.nextInt(offset * 2 + 1) - offset;
-      attempts++;
-    } while (options.contains(thirdOption) || thirdOption < 0 || attempts < 50);
-
-    // Si no se pudo generar una tercera opción única, usar un valor fallback
-    if (options.contains(thirdOption) || thirdOption < 0) {
-      thirdOption = correctResult + 7;
-      while (options.contains(thirdOption)) {
-        thirdOption++;
+    // Generar opciones incorrectas hasta tener exactamente 3
+    while (options.length < 3) {
+      final offset = (correctResult * 0.3).toInt().clamp(2, 30);
+      final candidate = correctResult + random.nextInt(offset * 2 + 1) - offset;
+      if (candidate >= 0 && !options.contains(candidate)) {
+        options.add(candidate);
       }
     }
 
-    options.add(thirdOption);
+    // Si por alguna razón aún no hay 3, forzar con fallback
+    if (options.length < 3) {
+      int fallback = correctResult + 1;
+      while (options.contains(fallback)) {
+        fallback++;
+      }
+      options.add(fallback);
+    }
 
     // Mezclar las opciones (pero recordar cuál es la correcta)
     final List<int> shuffled = options.toList()..shuffle(random);
