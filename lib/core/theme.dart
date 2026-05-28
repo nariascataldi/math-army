@@ -4,13 +4,17 @@ import 'package:google_fonts/google_fonts.dart';
 class GameTheme {
   // Paleta de Colores
   static const Color spaceCadet = Color(0xFF0B0F19); // Fondo ultra oscuro
-  static const Color slateBlue = Color(0xFF1E293B);  // Paneles e interfaces
-  static const Color neonCyan = Color(0xFF00E5FF);   // Leo y soldados
-  static const Color neonGreen = Color(0xFF39FF14);  // Portales correctos / éxito
-  static const Color neonRed = Color(0xFFFF3131);    // Portales incorrectos / enemigos
+  static const Color slateBlue = Color(0xFF1E293B); // Paneles e interfaces
+  static const Color neonCyan = Color(0xFF00E5FF); // Leo y soldados
+  static const Color neonGreen = Color(
+    0xFF39FF14,
+  ); // Portales correctos / éxito
+  static const Color neonRed = Color(
+    0xFFFF3131,
+  ); // Portales incorrectos / enemigos
   static const Color neonOrange = Color(0xFFFF5F1F); // Jefe enemigo
-  static const Color textWhite = Color(0xFFF8FAFC);  // Texto principal
-  static const Color textGrey = Color(0xFF94A3B8);   // Texto secundario
+  static const Color textWhite = Color(0xFFF8FAFC); // Texto principal
+  static const Color textGrey = Color(0xFF94A3B8); // Texto secundario
 
   // Tema de Flutter
   static ThemeData get darkTheme {
@@ -41,10 +45,7 @@ class GameTheme {
           color: textWhite,
           fontWeight: FontWeight.w600,
         ),
-        bodyMedium: GoogleFonts.plusJakartaSans(
-          fontSize: 14,
-          color: textGrey,
-        ),
+        bodyMedium: GoogleFonts.plusJakartaSans(fontSize: 14, color: textGrey),
         labelLarge: GoogleFonts.outfit(
           fontSize: 16,
           fontWeight: FontWeight.bold,
@@ -56,7 +57,11 @@ class GameTheme {
   }
 
   // Estilos decorativos para CustomPainter
-  static Paint getPaint(Color color, {bool isStroke = false, double strokeWidth = 2.0}) {
+  static Paint getPaint(
+    Color color, {
+    bool isStroke = false,
+    double strokeWidth = 2.0,
+  }) {
     return Paint()
       ..color = color
       ..style = isStroke ? PaintingStyle.stroke : PaintingStyle.fill
@@ -69,10 +74,10 @@ class GameTheme {
     return BoxDecoration(
       color: slateBlue,
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: color.withOpacity(0.8), width: 2),
+      border: Border.all(color: color.withValues(alpha: 0.8), width: 2),
       boxShadow: [
         BoxShadow(
-          color: color.withOpacity(0.4),
+          color: color.withValues(alpha: 0.4),
           blurRadius: radius,
           spreadRadius: 2,
         ),

@@ -15,17 +15,21 @@ class GameController extends ChangeNotifier {
   GameStatus status = GameStatus.idle;
   int currentLevel = 1;
   double progress = 0.0; // Progresión del recorrido (0.0 a 1.0)
-  
+
   // Personajes y entidades
   final Leo leo = Leo();
   final EnemyBoss boss = EnemyBoss();
   List<Soldier> activeSoldiers = [];
   List<MathProblem> levelProblems = [];
   final Map<int, int> soldiersCountAtPortal = {};
-  
+
   // Zonas de decisión (posiciones de progreso donde aparecen los portales)
   final List<double> decisionZones = [0.18, 0.36, 0.54, 0.72, 0.90];
   int nextDecisionZoneIndex = 0;
+
+  // Estado del challenge matemático actual
+  int _challengeSoldiersCount = 0;
+  int get challengeSoldiersCount => _challengeSoldiersCount;
 
   // Bucle de físicas y animación
   Ticker? _ticker;
@@ -34,10 +38,7 @@ class GameController extends ChangeNotifier {
   // Timer para la batalla final contra el jefe
   Timer? _battleTimer;
 
-  GameController({
-    required this.mathRepository,
-    required this.audioSystem,
-  }) {
+  GameController({required this.mathRepository, required this.audioSystem}) {
     _initLevel();
   }
 
@@ -48,14 +49,14 @@ class GameController extends ChangeNotifier {
     status = GameStatus.idle;
     boss.currentSoldiers = boss.initialSoldiers;
     soldiersCountAtPortal.clear();
-    
+
     // Obtener problemas para el nivel actual
     levelProblems = mathRepository.getProblemsForLevel(currentLevel);
-    
+
     // Inicializar con 1 soldado (el propio Leo o su primer escolta)
     activeSoldiers.clear();
     _setSoldierCount(1);
-    
+
     notifyListeners();
   }
 
@@ -63,11 +64,11 @@ class GameController extends ChangeNotifier {
   void startGame() {
     if (status != GameStatus.idle) return;
     status = GameStatus.running;
-    
+
     _ticker = Ticker(_onTick);
     _lastElapsed = null;
     _ticker!.start();
-    
+
     notifyListeners();
   }
 
@@ -115,7 +116,8 @@ class GameController extends ChangeNotifier {
       return;
     }
 
-    final double dt = (elapsed.inMicroseconds - _lastElapsed!.inMicroseconds) / 1000000.0;
+    final double dt =
+        (elapsed.inMicroseconds - _lastElapsed!.inMicroseconds) / 1000000.0;
     _lastElapsed = elapsed;
 
     // 1. Avanzar progreso del runner
@@ -130,10 +132,10 @@ class GameController extends ChangeNotifier {
     if (nextDecisionZoneIndex < decisionZones.length &&
         nextDecisionZoneIndex < levelProblems.length) {
       final double zoneProgress = decisionZones[nextDecisionZoneIndex];
-      
+
       // Si cruzamos el portal en el eje Y
       if (progress >= zoneProgress) {
-        _handlePortalCollision();
+        _showMathChallenge();
       }
     }
 
@@ -145,36 +147,62 @@ class GameController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Procesa la colisión con el portal basándose en la posición lateral de Leo
-  void _handlePortalCollision() {
-    final problem = levelProblems[nextDecisionZoneIndex];
-    final int previousCount = activeSoldiers.length;
-    
-    // Registrar el recuento antes de aplicar la operación
-    soldiersCountAtPortal[nextDecisionZoneIndex] = previousCount;
-    
-    // Si Leo está a la izquierda (x < 0) entra por el Portal A, si no por el Portal B
-    final int selectedPortalIndex = leo.x < 0 ? 0 : 1;
-    final int correctPortalIndex = problem.getCorrectOptionIndex(previousCount);
-    
-    final operation = problem.getOperationByIndex(selectedPortalIndex);
-    final int newCount = operation.apply(previousCount);
-    
-    _setSoldierCount(newCount);
+  /// Pausa el juego y muestra el desafío matemático
+  void _showMathChallenge() {
+    _ticker?.stop();
+    _challengeSoldiersCount = activeSoldiers.length;
+    soldiersCountAtPortal[nextDecisionZoneIndex] = _challengeSoldiersCount;
+    status = GameStatus.mathChallenge;
+    notifyListeners();
+  }
 
-    if (selectedPortalIndex == correctPortalIndex) {
+  /// Procesa la respuesta del jugador al desafío matemático
+  void submitAnswer(int selectedIndex) {
+    if (status != GameStatus.mathChallenge) return;
+
+    final problem = levelProblems[nextDecisionZoneIndex];
+    final bool isCorrect = problem.isCorrectAnswer(
+      selectedIndex,
+      _challengeSoldiersCount,
+    );
+
+    // Calcular el nuevo conteo de soldados
+    int newCount;
+    if (isCorrect) {
+      newCount = problem
+          .getOptimalOperation(_challengeSoldiersCount)
+          .apply(_challengeSoldiersCount);
       audioSystem.playPortalSuccess();
     } else {
+      // Si falla, se aplica la operación incorrecta (el otro portal)
+      newCount = problem
+          .getOperationByIndex(
+            1 - problem.getCorrectOptionIndex(_challengeSoldiersCount),
+          )
+          .apply(_challengeSoldiersCount);
       audioSystem.playPortalFailure();
     }
 
+    _setSoldierCount(newCount);
     nextDecisionZoneIndex++;
+
+    // Reanudar el juego después de un breve delay para mostrar feedback
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (status == GameStatus.mathChallenge) {
+        status = GameStatus.running;
+        _lastElapsed = null;
+        _ticker?.start();
+        notifyListeners();
+      }
+    });
+
+    notifyListeners();
   }
 
   /// Mover lateralmente a Leo (Control táctil o botón)
   void moveLeo(double deltaX) {
     if (status != GameStatus.running) return;
-    
+
     // Limitar la posición horizontal de Leo a los bordes de la pista (-0.8 a 0.8)
     leo.x = (leo.x + deltaX).clamp(-0.8, 0.8);
     _recalculateSoldierFormations();
@@ -190,11 +218,7 @@ class GameController extends ChangeNotifier {
       for (int i = currentCount; i < targetCount; i++) {
         // Nacen desde la posición central actual de Leo para un efecto visual de explosión
         activeSoldiers.add(
-          Soldier(
-            id: i,
-            currentOffsetX: 0.0,
-            currentOffsetY: 0.0,
-          ),
+          Soldier(id: i, currentOffsetX: 0.0, currentOffsetY: 0.0),
         );
         if (i - currentCount < 10) {
           audioSystem.playSoldierSpawn();
@@ -224,15 +248,20 @@ class GameController extends ChangeNotifier {
     while (soldierIndex < activeSoldiers.length) {
       // Capacidad de la capa actual
       final int layerCapacity = layer * 6;
-      final double radius = layer * 18.0; // Distancia entre capas de soldados (en píxeles)
+      final double radius =
+          layer * 18.0; // Distancia entre capas de soldados (en píxeles)
 
-      for (int i = 0; i < layerCapacity && soldierIndex < activeSoldiers.length; i++) {
+      for (
+        int i = 0;
+        i < layerCapacity && soldierIndex < activeSoldiers.length;
+        i++
+      ) {
         final double angle = (i * 2 * pi) / layerCapacity;
-        
+
         // Asignar posición ideal
         activeSoldiers[soldierIndex].targetOffsetX = cos(angle) * radius;
         activeSoldiers[soldierIndex].targetOffsetY = sin(angle) * radius;
-        
+
         soldierIndex++;
       }
       layer++;

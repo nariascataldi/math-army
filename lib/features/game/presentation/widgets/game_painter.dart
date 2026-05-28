@@ -21,34 +21,50 @@ class GamePainter extends CustomPainter {
     // Dibujar pista de carreras (carril central vertical)
     final double trackWidth = width * 0.85;
     final double trackLeft = (width - trackWidth) / 2;
-    
+
     final trackPaint = Paint()
-      ..color = GameTheme.slateBlue.withOpacity(0.4)
+      ..color = GameTheme.slateBlue.withValues(alpha: 0.4)
       ..style = PaintingStyle.fill;
-    canvas.drawRect(Rect.fromLTWH(trackLeft, 0, trackWidth, height), trackPaint);
+    canvas.drawRect(
+      Rect.fromLTWH(trackLeft, 0, trackWidth, height),
+      trackPaint,
+    );
 
     // Bordes brillantes neón de la pista
     final borderPaint = Paint()
-      ..color = GameTheme.neonCyan.withOpacity(0.3)
+      ..color = GameTheme.neonCyan.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
-    canvas.drawLine(Offset(trackLeft, 0), Offset(trackLeft, height), borderPaint);
-    canvas.drawLine(Offset(trackLeft + trackWidth, 0), Offset(trackLeft + trackWidth, height), borderPaint);
+    canvas.drawLine(
+      Offset(trackLeft, 0),
+      Offset(trackLeft, height),
+      borderPaint,
+    );
+    canvas.drawLine(
+      Offset(trackLeft + trackWidth, 0),
+      Offset(trackLeft + trackWidth, height),
+      borderPaint,
+    );
 
     // Línea segmentada en el centro que se desplaza hacia abajo (efecto de movimiento)
     if (state.status == GameStatus.running) {
       final double dashHeight = 30.0;
       final double dashSpace = 20.0;
-      final double speedOffset = (state.progress * height * 5) % (dashHeight + dashSpace);
-      
+      final double speedOffset =
+          (state.progress * height * 5) % (dashHeight + dashSpace);
+
       final dashPaint = Paint()
-        ..color = GameTheme.textGrey.withOpacity(0.2)
+        ..color = GameTheme.textGrey.withValues(alpha: 0.2)
         ..strokeWidth = 2
         ..style = PaintingStyle.stroke;
 
       double y = -speedOffset;
       while (y < height) {
-        canvas.drawLine(Offset(width / 2, y), Offset(width / 2, y + dashHeight), dashPaint);
+        canvas.drawLine(
+          Offset(width / 2, y),
+          Offset(width / 2, y + dashHeight),
+          dashPaint,
+        );
         y += dashHeight + dashSpace;
       }
     }
@@ -64,7 +80,12 @@ class GamePainter extends CustomPainter {
   }
 
   /// Renderiza los portales matemáticos flotantes en su posición de progreso correspondiente
-  void _paintPortals(Canvas canvas, Size size, double trackLeft, double trackWidth) {
+  void _paintPortals(
+    Canvas canvas,
+    Size size,
+    double trackLeft,
+    double trackWidth,
+  ) {
     final double width = size.width;
     final double height = size.height;
 
@@ -79,7 +100,7 @@ class GamePainter extends CustomPainter {
         // Calcular posición Y en pantalla en base al progreso actual del juego
         // A medida que el progreso aumenta, el portal baja hacia Leo.
         final double relativeProgress = zoneProgress - state.progress;
-        
+
         // Solo dibujar portales que están por delante en el camino
         if (relativeProgress > -0.1 && relativeProgress < 0.8) {
           final double portalY = playerY - (relativeProgress * height * 2.5);
@@ -93,12 +114,22 @@ class GamePainter extends CustomPainter {
           final double gap = trackWidth * 0.04;
 
           // Portal Izquierdo (A)
-          final double rectALeft = trackLeft + gap/2;
-          final Rect rectA = Rect.fromLTWH(rectALeft, portalY - portalHeight/2, portalWidth, portalHeight);
+          final double rectALeft = trackLeft + gap / 2;
+          final Rect rectA = Rect.fromLTWH(
+            rectALeft,
+            portalY - portalHeight / 2,
+            portalWidth,
+            portalHeight,
+          );
 
           // Portal Derecho (B)
-          final double rectBLeft = width / 2 + gap/2;
-          final Rect rectB = Rect.fromLTWH(rectBLeft, portalY - portalHeight/2, portalWidth, portalHeight);
+          final double rectBLeft = width / 2 + gap / 2;
+          final Rect rectB = Rect.fromLTWH(
+            rectBLeft,
+            portalY - portalHeight / 2,
+            portalWidth,
+            portalHeight,
+          );
 
           // Estilo de diseño pedagógico: Ambos portales se ven de color cian neón neutro
           // para que el niño calcule antes de cruzar. Si el portal ya pasó la línea de Leo,
@@ -109,28 +140,55 @@ class GamePainter extends CustomPainter {
 
           if (isPassed) {
             // Revelar feedback
-            final int correctIdx = problem.getCorrectOptionIndex(state.soldiersCountAtPortal[i] ?? 1);
-            portalColorA = (correctIdx == 0) ? GameTheme.neonGreen : GameTheme.neonRed;
-            portalColorB = (correctIdx == 1) ? GameTheme.neonGreen : GameTheme.neonRed;
+            final int correctIdx = problem.getCorrectOptionIndex(
+              state.soldiersCountAtPortal[i] ?? 1,
+            );
+            portalColorA = (correctIdx == 0)
+                ? GameTheme.neonGreen
+                : GameTheme.neonRed;
+            portalColorB = (correctIdx == 1)
+                ? GameTheme.neonGreen
+                : GameTheme.neonRed;
           }
 
           // Dibujar Portal A
-          _drawPortalFrame(canvas, rectA, portalColorA, problem.optionA.expression, isPassed);
+          _drawPortalFrame(
+            canvas,
+            rectA,
+            portalColorA,
+            problem.optionA.expression,
+            isPassed,
+          );
 
           // Dibujar Portal B
-          _drawPortalFrame(canvas, rectB, portalColorB, problem.optionB.expression, isPassed);
+          _drawPortalFrame(
+            canvas,
+            rectB,
+            portalColorB,
+            problem.optionB.expression,
+            isPassed,
+          );
         }
       }
     }
   }
 
   /// Dibuja el marco y texto de un portal individual con efecto neón
-  void _drawPortalFrame(Canvas canvas, Rect rect, Color color, String text, bool isPassed) {
-    final RRect rrect = RRect.fromRectAndRadius(rect, const Radius.circular(12));
-    
+  void _drawPortalFrame(
+    Canvas canvas,
+    Rect rect,
+    Color color,
+    String text,
+    bool isPassed,
+  ) {
+    final RRect rrect = RRect.fromRectAndRadius(
+      rect,
+      const Radius.circular(12),
+    );
+
     // Relleno semi-transparente del portal
     final fillPaint = Paint()
-      ..color = color.withOpacity(isPassed ? 0.25 : 0.12)
+      ..color = color.withValues(alpha: isPassed ? 0.25 : 0.12)
       ..style = PaintingStyle.fill;
     canvas.drawRRect(rrect, fillPaint);
 
@@ -147,11 +205,7 @@ class GamePainter extends CustomPainter {
       fontSize: 22,
       fontWeight: FontWeight.bold,
       shadows: [
-        Shadow(
-          blurRadius: 10.0,
-          color: color,
-          offset: const Offset(0, 0),
-        ),
+        Shadow(blurRadius: 10.0, color: color, offset: const Offset(0, 0)),
       ],
     );
 
@@ -162,16 +216,21 @@ class GamePainter extends CustomPainter {
       textAlign: TextAlign.center,
     );
     textPainter.layout(minWidth: rect.width, maxWidth: rect.width);
-    
+
     final textOffset = Offset(
-      rect.left, 
-      rect.top + (rect.height - textPainter.height) / 2
+      rect.left,
+      rect.top + (rect.height - textPainter.height) / 2,
     );
     textPainter.paint(canvas, textOffset);
   }
 
   /// Dibuja el combate final con el Jefe Enemigo al final del camino
-  void _paintBoss(Canvas canvas, Size size, double trackLeft, double trackWidth) {
+  void _paintBoss(
+    Canvas canvas,
+    Size size,
+    double trackLeft,
+    double trackWidth,
+  ) {
     final double width = size.width;
     final double height = size.height;
     final double playerY = height * 0.75;
@@ -186,12 +245,12 @@ class GamePainter extends CustomPainter {
 
       // Dibujar área defensiva del jefe (Círculo rojo brillante)
       final zonePaint = Paint()
-        ..color = GameTheme.neonRed.withOpacity(0.1)
+        ..color = GameTheme.neonRed.withValues(alpha: 0.1)
         ..style = PaintingStyle.fill;
       canvas.drawCircle(bossCenter, bossRadius * 1.6, zonePaint);
 
       final borderZonePaint = Paint()
-        ..color = GameTheme.neonRed.withOpacity(0.3)
+        ..color = GameTheme.neonRed.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2
         ..strokeJoin = StrokeJoin.round;
@@ -211,8 +270,16 @@ class GamePainter extends CustomPainter {
 
       // Dibujar "Ojos" del jefe para que sea más imponente
       final eyePaint = Paint()..color = GameTheme.neonRed;
-      canvas.drawCircle(Offset(bossCenter.dx - 18, bossCenter.dy - 10), 6, eyePaint);
-      canvas.drawCircle(Offset(bossCenter.dx + 18, bossCenter.dy - 10), 6, eyePaint);
+      canvas.drawCircle(
+        Offset(bossCenter.dx - 18, bossCenter.dy - 10),
+        6,
+        eyePaint,
+      );
+      canvas.drawCircle(
+        Offset(bossCenter.dx + 18, bossCenter.dy - 10),
+        6,
+        eyePaint,
+      );
 
       // Dibujar contador de soldados del jefe
       final bossCountStyle = const TextStyle(
@@ -228,17 +295,20 @@ class GamePainter extends CustomPainter {
         ],
       );
 
-      final textSpan = TextSpan(text: '${state.bossSoldiers}', style: bossCountStyle);
+      final textSpan = TextSpan(
+        text: '${state.bossSoldiers}',
+        style: bossCountStyle,
+      );
       final textPainter = TextPainter(
         text: textSpan,
         textDirection: TextDirection.ltr,
         textAlign: TextAlign.center,
       );
       textPainter.layout(minWidth: bossRadius * 2);
-      
+
       final textOffset = Offset(
         bossCenter.dx - bossRadius,
-        bossCenter.dy - textPainter.height / 2
+        bossCenter.dy - textPainter.height / 2,
       );
       textPainter.paint(canvas, textOffset);
 
@@ -247,9 +317,9 @@ class GamePainter extends CustomPainter {
       if (activeEnemies > 0) {
         final double enemySoldierRadius = 6.0;
         final int maxVisualEnemies = min(activeEnemies, 40);
-        
+
         final enemyPaint = Paint()..color = GameTheme.neonRed;
-        
+
         for (int i = 0; i < maxVisualEnemies; i++) {
           // Distribuir en un anillo alrededor del jefe
           final double angle = (i * 2 * pi) / maxVisualEnemies;
@@ -276,10 +346,10 @@ class GamePainter extends CustomPainter {
 
     // Dibujar a Leo (El avatar principal en el centro de la formación)
     final double leoRadius = 14.0;
-    
+
     // Aura brillante alrededor de Leo
     final leoAura = Paint()
-      ..color = GameTheme.neonCyan.withOpacity(0.2)
+      ..color = GameTheme.neonCyan.withValues(alpha: 0.2)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(playerCenter, leoRadius * 1.5, leoAura);
 
@@ -297,9 +367,10 @@ class GamePainter extends CustomPainter {
 
     // Corona/Detalle dorado para Leo (líder del ejército)
     final crownPaint = Paint()
-      ..color = const Color(0xFFFFD700) // Oro
+      ..color =
+          const Color(0xFFFFD700) // Oro
       ..style = PaintingStyle.fill;
-    
+
     final crownPath = Path()
       ..moveTo(playerCenter.dx - 8, playerCenter.dy - 6)
       ..lineTo(playerCenter.dx - 8, playerCenter.dy - 13)
@@ -313,7 +384,7 @@ class GamePainter extends CustomPainter {
 
     // Dibujar Soldados del ejército (Clones)
     final double soldierRadius = 6.0;
-    
+
     // Para dar un efecto de correr, usaremos una oscilación basada en el tiempo/progreso
     final double runCycle = sin(state.progress * 40 * pi) * 2.0;
 
@@ -323,19 +394,22 @@ class GamePainter extends CustomPainter {
       // Las posiciones offset son relativas a Leo
       double x = playerCenter.dx + soldier.currentOffsetX;
       // Añadir la oscilación vertical al correr para el dinamismo visual
-      double y = playerCenter.dy + soldier.currentOffsetY + (soldier.id % 2 == 0 ? runCycle : -runCycle);
+      double y =
+          playerCenter.dy +
+          soldier.currentOffsetY +
+          (soldier.id % 2 == 0 ? runCycle : -runCycle);
 
       // Pintar soldado individual con escala de animación
       final double size = soldierRadius * soldier.scale;
       if (size > 0) {
         final soldierPaint = Paint()
-          ..color = soldier.color.withOpacity(soldier.scale)
+          ..color = soldier.color.withValues(alpha: soldier.scale)
           ..style = PaintingStyle.fill;
         canvas.drawCircle(Offset(x, y), size, soldierPaint);
 
         // Brillo neón en el borde del soldado
         final soldierBorderPaint = Paint()
-          ..color = Colors.white.withOpacity(soldier.scale * 0.8)
+          ..color = Colors.white.withValues(alpha: soldier.scale * 0.8)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.0;
         canvas.drawCircle(Offset(x, y), size, soldierBorderPaint);
@@ -356,32 +430,37 @@ class GamePainter extends CustomPainter {
       ],
     );
 
-    final textSpan = TextSpan(text: '${state.soldiersCount}', style: countStyle);
+    final textSpan = TextSpan(
+      text: '${state.soldiersCount}',
+      style: countStyle,
+    );
     final textPainter = TextPainter(
       text: textSpan,
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
     );
     textPainter.layout();
-    
+
     // Posicionar el indicador de soldados flotando arriba del grupo
     final textOffset = Offset(
       playerCenter.dx - textPainter.width / 2,
-      playerCenter.dy - 35.0 - (state.soldiersCount > 30 ? 15 : 0) // Subir si hay muchos soldados
+      playerCenter.dy -
+          35.0 -
+          (state.soldiersCount > 30 ? 15 : 0), // Subir si hay muchos soldados
     );
-    
+
     // Fondo de burbuja pequeña para el texto
     final bubblePaint = Paint()
-      ..color = GameTheme.slateBlue.withOpacity(0.8)
+      ..color = GameTheme.slateBlue.withValues(alpha: 0.8)
       ..style = PaintingStyle.fill;
     final bubbleRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(
-        textOffset.dx - 8, 
-        textOffset.dy - 2, 
-        textPainter.width + 16, 
-        textPainter.height + 4
+        textOffset.dx - 8,
+        textOffset.dy - 2,
+        textPainter.width + 16,
+        textPainter.height + 4,
       ),
-      const Radius.circular(8)
+      const Radius.circular(8),
     );
     canvas.drawRRect(bubbleRect, bubblePaint);
 
@@ -398,10 +477,10 @@ class GamePainter extends CustomPainter {
   bool shouldRepaint(covariant GamePainter oldDelegate) {
     // Repintar siempre que el progreso, la posición o la cantidad de soldados cambie
     return oldDelegate.state.progress != state.progress ||
-           oldDelegate.state.leoX != state.leoX ||
-           oldDelegate.state.soldiersCount != state.soldiersCount ||
-           oldDelegate.state.bossSoldiers != state.bossSoldiers ||
-           oldDelegate.state.status != state.status;
+        oldDelegate.state.leoX != state.leoX ||
+        oldDelegate.state.soldiersCount != state.soldiersCount ||
+        oldDelegate.state.bossSoldiers != state.bossSoldiers ||
+        oldDelegate.state.status != state.status;
   }
 }
 
@@ -416,7 +495,8 @@ class GameControllerState {
   final int bossSoldiers;
   final List<double> decisionZones;
   final List<MathProblem> levelProblems;
-  final Map<int, int> soldiersCountAtPortal; // Mapea índice del portal con soldados que tenía Leo al entrar
+  final Map<int, int>
+  soldiersCountAtPortal; // Mapea índice del portal con soldados que tenía Leo al entrar
 
   GameControllerState({
     required this.status,
