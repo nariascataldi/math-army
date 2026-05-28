@@ -1,104 +1,145 @@
 import 'dart:math';
 import 'math_operation.dart';
 
+class MathQuestion {
+  final String text;
+  final int correctAnswer;
+  final List<int> options;
+  final int correctIndex;
+
+  const MathQuestion({
+    required this.text,
+    required this.correctAnswer,
+    required this.options,
+    required this.correctIndex,
+  });
+}
+
+class OperationChoice {
+  final String label;
+  final String resultLabel;
+  final int resultValue;
+  final MathOperation operation;
+
+  const OperationChoice({
+    required this.label,
+    required this.resultLabel,
+    required this.resultValue,
+    required this.operation,
+  });
+}
+
 class MathProblem {
   final MathOperation optionA;
   final MathOperation optionB;
 
   const MathProblem({required this.optionA, required this.optionB});
 
-  /// Evalúa ambas opciones dado el número actual de soldados y retorna
-  /// la operación que ofrece el mejor resultado (mayor cantidad de soldados).
   MathOperation getOptimalOperation(int currentSoldiers) {
     final resultA = optionA.apply(currentSoldiers);
     final resultB = optionB.apply(currentSoldiers);
     return resultA >= resultB ? optionA : optionB;
   }
 
-  /// Retorna el índice de la opción correcta (0 para Opción A, 1 para Opción B)
-  /// dado el número actual de soldados.
   int getCorrectOptionIndex(int currentSoldiers) {
     final resultA = optionA.apply(currentSoldiers);
     final resultB = optionB.apply(currentSoldiers);
     return resultA >= resultB ? 0 : 1;
   }
 
-  /// Retorna la operación correspondiente al índice seleccionado (0 o 1).
   MathOperation getOperationByIndex(int index) {
     return index == 0 ? optionA : optionB;
   }
 
   // ==========================================
-  // MÚLTIPLE CHOICE (3 opciones)
+  // FASE 1: PREGUNTA MATEMÁTICA
   // ==========================================
 
-  /// Retorna el texto de la pregunta para el desafío matemático.
-  String getQuestionText(int currentSoldiers) {
-    final correctOp = getOptimalOperation(currentSoldiers);
-    final opName = _operationName(correctOp);
-    return 'Si tienes $currentSoldiers soldados,\n¿cuántos tendrás si $opName ${correctOp.value}?';
-  }
-
-  /// Retorna las 3 opciones de respuesta como lista de enteros.
-  /// La primera siempre es la correcta.
-  List<int> getChoiceOptions(int currentSoldiers) {
-    final correctResult = getOptimalOperation(
-      currentSoldiers,
-    ).apply(currentSoldiers);
-    final wrongResult = getOperationByIndex(
-      1 - getCorrectOptionIndex(currentSoldiers),
-    ).apply(currentSoldiers);
-
-    final Set<int> options = {correctResult, wrongResult};
+  MathQuestion getMathQuestion(int currentSoldiers) {
     final random = Random();
 
-    // Generar opciones incorrectas hasta tener exactamente 3
+    // Generar una pregunta que SIEMPRE sea positiva (suma o multiplicación)
+    final isAddition = random.nextBool();
+    final int a = currentSoldiers;
+    final int b;
+    final int correctAnswer;
+    final String text;
+
+    if (isAddition) {
+      b = 2 + random.nextInt(9); // 2 a 10
+      correctAnswer = a + b;
+      text = '$a + $b = ?';
+    } else {
+      b = 2 + random.nextInt(3); // 2 a 4
+      correctAnswer = a * b;
+      text = '$a x $b = ?';
+    }
+
+    // Generar 3 opciones (correcta + 2 incorrectas)
+    final Set<int> options = {correctAnswer};
     while (options.length < 3) {
-      final offset = (correctResult * 0.3).toInt().clamp(2, 30);
-      final candidate = correctResult + random.nextInt(offset * 2 + 1) - offset;
-      if (candidate >= 0 && !options.contains(candidate)) {
+      final offset = (correctAnswer * 0.3).toInt().clamp(2, 20);
+      final candidate = correctAnswer + random.nextInt(offset * 2 + 1) - offset;
+      if (candidate > 0 && !options.contains(candidate)) {
         options.add(candidate);
       }
     }
 
-    // Si por alguna razón aún no hay 3, forzar con fallback
-    if (options.length < 3) {
-      int fallback = correctResult + 1;
-      while (options.contains(fallback)) {
-        fallback++;
-      }
-      options.add(fallback);
-    }
-
-    // Mezclar las opciones (pero recordar cuál es la correcta)
     final List<int> shuffled = options.toList()..shuffle(random);
-    return shuffled;
+    return MathQuestion(
+      text: text,
+      correctAnswer: correctAnswer,
+      options: shuffled,
+      correctIndex: shuffled.indexOf(correctAnswer),
+    );
   }
 
-  /// Retorna el índice de la respuesta correcta en la lista mezclada.
-  int getCorrectChoiceIndex(int currentSoldiers) {
-    final correctResult = getOptimalOperation(
-      currentSoldiers,
-    ).apply(currentSoldiers);
-    final options = getChoiceOptions(currentSoldiers);
-    return options.indexOf(correctResult);
+  // ==========================================
+  // FASE 2: ELECCIÓN DE OPERACIÓN
+  // ==========================================
+
+  List<OperationChoice> getOperationChoices(int mathResult) {
+    // Ambas opciones son POSITIVAS (suma o multiplicación)
+    final choiceA = _buildChoice(optionA, mathResult);
+    final choiceB = _buildChoice(optionB, mathResult);
+    return [choiceA, choiceB];
   }
 
-  /// Verifica si la opción seleccionada es correcta.
-  bool isCorrectAnswer(int selectedIndex, int currentSoldiers) {
-    return selectedIndex == getCorrectChoiceIndex(currentSoldiers);
-  }
+  OperationChoice _buildChoice(MathOperation op, int mathResult) {
+    String label;
+    String resultLabel;
+    int resultValue;
 
-  String _operationName(MathOperation op) {
     switch (op.type) {
       case MathOperationType.add:
-        return 'sumas';
+        label = '+${op.value} soldados';
+        resultValue = mathResult + op.value;
+        resultLabel = '→ $resultValue soldados';
+        break;
       case MathOperationType.sub:
-        return 'restas';
+        // Convertir resta a suma para que siempre sea positivo
+        label = '+${op.value} soldados';
+        resultValue = mathResult + op.value;
+        resultLabel = '→ $resultValue soldados';
+        break;
       case MathOperationType.mult:
-        return 'multiplicas por';
+        label = 'x${op.value} soldados';
+        resultValue = mathResult * op.value;
+        resultLabel = '→ $resultValue soldados';
+        break;
       case MathOperationType.div:
-        return 'divides entre';
+        // Convertir división a multiplicación para que siempre sea positivo
+        label = 'x${op.value} soldados';
+        resultValue = mathResult * op.value;
+        resultLabel = '→ $resultValue soldados';
+        break;
     }
+
+    return OperationChoice(
+      label: label,
+      resultLabel: resultLabel,
+      resultValue: resultValue,
+      operation: op,
+    );
   }
 }

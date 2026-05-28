@@ -16,7 +16,6 @@ class GameScreen extends StatelessWidget {
           return SafeArea(
             child: Stack(
               children: [
-                // 1. El lienzo principal del juego 2D
                 GestureDetector(
                   onHorizontalDragUpdate: (details) {
                     final double screenWidth = MediaQuery.of(
@@ -43,15 +42,9 @@ class GameScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                // 2. Interfaz superior (HUD del juego)
                 _buildHUD(context, controller),
-
-                // 3. Fallback de controles táctiles laterales
                 if (controller.status == GameStatus.running)
                   _buildSideTouchControls(controller),
-
-                // 4. Overlays de estado de juego
                 _buildGameOverlays(context, controller),
               ],
             ),
@@ -173,7 +166,7 @@ class GameScreen extends StatelessWidget {
         return _buildStartOverlay(context, controller);
       case GameStatus.mathChallenge:
         return _MathChallengeOverlay(
-          key: ValueKey('challenge_${controller.nextDecisionZoneIndex}'),
+          key: ValueKey('challenge_${controller.currentChallengeIndex}'),
           controller: controller,
         );
       case GameStatus.bossBattle:
@@ -500,14 +493,12 @@ class GameScreen extends StatelessWidget {
 }
 
 // ==========================================
-// OVERLAY DE DESAFÍO MATEMÁTICO
+// OVERLAY DE DESAFÍO MATEMÁTICO (2 FASES)
 // ==========================================
 
 class _MathChallengeOverlay extends StatefulWidget {
   final GameController controller;
-
   const _MathChallengeOverlay({super.key, required this.controller});
-
   @override
   State<_MathChallengeOverlay> createState() => _MathChallengeOverlayState();
 }
@@ -516,15 +507,12 @@ class _MathChallengeOverlayState extends State<_MathChallengeOverlay>
     with SingleTickerProviderStateMixin {
   int? _selectedIndex;
   bool? _isCorrect;
-  late List<int> _options;
-  late String _questionText;
   late AnimationController _animController;
   late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
-    _prepareChallenge();
     _animController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -536,48 +524,37 @@ class _MathChallengeOverlayState extends State<_MathChallengeOverlay>
     _animController.forward();
   }
 
-  void _prepareChallenge() {
-    final problem = widget
-        .controller
-        .levelProblems[widget.controller.nextDecisionZoneIndex];
-    final soldiersCount = widget.controller.challengeSoldiersCount;
-    _questionText = problem.getQuestionText(soldiersCount);
-    _options = problem.getChoiceOptions(soldiersCount);
-  }
-
   @override
   void dispose() {
     _animController.dispose();
     super.dispose();
   }
 
-  void _onOptionSelected(int index) {
-    if (_selectedIndex != null) return; // Ya seleccionó
+  void _onMathAnswerSelected(int index) {
+    if (_selectedIndex != null) return;
 
     final problem = widget
         .controller
-        .levelProblems[widget.controller.nextDecisionZoneIndex];
-    final isCorrect = problem.isCorrectAnswer(
-      index,
+        .levelProblems[widget.controller.currentChallengeIndex];
+    final question = problem.getMathQuestion(
       widget.controller.challengeSoldiersCount,
     );
 
     setState(() {
       _selectedIndex = index;
-      _isCorrect = isCorrect;
+      _isCorrect = index == question.correctIndex;
     });
 
-    // Enviar respuesta al controller
-    widget.controller.submitAnswer(index);
+    widget.controller.submitMathAnswer(index);
+  }
+
+  void _onOperationSelected(int index) {
+    widget.controller.submitOperationChoice(index);
   }
 
   @override
   Widget build(BuildContext context) {
-    final problem = widget
-        .controller
-        .levelProblems[widget.controller.nextDecisionZoneIndex];
-    final soldiersCount = widget.controller.challengeSoldiersCount;
-    final correctIndex = problem.getCorrectChoiceIndex(soldiersCount);
+    final phase = widget.controller.challengePhase;
 
     return Container(
       color: GameTheme.spaceCadet.withValues(alpha: 0.97),
@@ -589,235 +566,366 @@ class _MathChallengeOverlayState extends State<_MathChallengeOverlay>
             child: Column(
               children: [
                 const SizedBox(height: 24),
-
-                // Header: Soldados actuales
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  decoration: GameTheme.neonGlow(
-                    color: GameTheme.neonCyan.withValues(alpha: 0.6),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.shield,
-                        color: GameTheme.neonCyan,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        '$soldiersCount soldados',
-                        style: const TextStyle(
-                          color: GameTheme.neonCyan,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
+                _buildHeader(),
                 const SizedBox(height: 20),
-
-                // Título del desafío
-                Text(
-                  '¡DESAFÍO MATEMÁTICO!',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: GameTheme.neonOrange,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    shadows: [
-                      const Shadow(blurRadius: 12, color: GameTheme.neonOrange),
-                    ],
-                  ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  child: phase == MathChallengePhase.question
+                      ? _buildQuestionPhase(key: const ValueKey('question'))
+                      : _buildOperationPhase(key: const ValueKey('operation')),
                 ),
-
-                const SizedBox(height: 24),
-
-                // Tarjeta de pregunta
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: GameTheme.slateBlue,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: GameTheme.neonCyan.withValues(alpha: 0.4),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: GameTheme.neonCyan.withValues(alpha: 0.15),
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.psychology,
-                        color: GameTheme.neonCyan,
-                        size: 40,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _questionText,
-                        style: const TextStyle(
-                          color: GameTheme.textWhite,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w600,
-                          height: 1.4,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 32),
-
-                // Opciones de respuesta
-                ...List.generate(3, (index) {
-                  final option = _options[index];
-                  final isSelected = _selectedIndex == index;
-                  final isCorrectOption = index == correctIndex;
-                  final showResult = _selectedIndex != null;
-
-                  Color bgColor;
-                  Color borderColor;
-                  Color textColor;
-                  IconData? icon;
-
-                  if (!showResult) {
-                    // Estado normal
-                    bgColor = GameTheme.slateBlue;
-                    borderColor = GameTheme.neonCyan.withValues(alpha: 0.3);
-                    textColor = GameTheme.textWhite;
-                    icon = null;
-                  } else if (isCorrectOption) {
-                    // Respuesta correcta (siempre verde)
-                    bgColor = GameTheme.neonGreen.withValues(alpha: 0.2);
-                    borderColor = GameTheme.neonGreen;
-                    textColor = GameTheme.neonGreen;
-                    icon = Icons.check_circle;
-                  } else if (isSelected && !_isCorrect!) {
-                    // Selección incorrecta
-                    bgColor = GameTheme.neonRed.withValues(alpha: 0.2);
-                    borderColor = GameTheme.neonRed;
-                    textColor = GameTheme.neonRed;
-                    icon = Icons.cancel;
-                  } else {
-                    // Otra opción no seleccionada (apagada)
-                    bgColor = GameTheme.slateBlue.withValues(alpha: 0.5);
-                    borderColor = Colors.white.withValues(alpha: 0.1);
-                    textColor = GameTheme.textGrey;
-                    icon = null;
-                  }
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _selectedIndex == null
-                              ? () => _onOptionSelected(index)
-                              : null,
-                          borderRadius: BorderRadius.circular(16),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 18,
-                            ),
-                            decoration: BoxDecoration(
-                              color: bgColor,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: borderColor,
-                                width: isSelected ? 3 : 1.5,
-                              ),
-                              boxShadow: showResult && isCorrectOption
-                                  ? [
-                                      BoxShadow(
-                                        color: GameTheme.neonGreen.withValues(
-                                          alpha: 0.3,
-                                        ),
-                                        blurRadius: 16,
-                                        spreadRadius: 2,
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  '$option',
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                if (icon != null)
-                                  Icon(icon, color: textColor, size: 28),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-
                 const Spacer(),
-
-                // Indicador de progreso del nivel
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(5, (index) {
-                    final isCompleted =
-                        index < widget.controller.nextDecisionZoneIndex;
-                    final isCurrent =
-                        index == widget.controller.nextDecisionZoneIndex;
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: isCurrent ? 24 : 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: isCompleted
-                            ? GameTheme.neonGreen
-                            : isCurrent
-                            ? GameTheme.neonCyan
-                            : GameTheme.slateBlue,
-                        borderRadius: BorderRadius.circular(5),
-                        boxShadow: isCurrent
-                            ? [
-                                BoxShadow(
-                                  color: GameTheme.neonCyan.withValues(
-                                    alpha: 0.5,
-                                  ),
-                                  blurRadius: 8,
-                                ),
-                              ]
-                            : null,
-                      ),
-                    );
-                  }),
-                ),
+                _buildProgressIndicator(),
                 const SizedBox(height: 24),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final soldiers = widget.controller.challengeSoldiersCount;
+    final phase = widget.controller.challengePhase;
+    final title = phase == MathChallengePhase.question
+        ? '¡DESAFÍO MATEMÁTICO!'
+        : '¡ELIGE TU PODER!';
+    final titleColor = phase == MathChallengePhase.question
+        ? GameTheme.neonOrange
+        : GameTheme.neonGreen;
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          decoration: GameTheme.neonGlow(
+            color: GameTheme.neonCyan.withValues(alpha: 0.6),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.shield, color: GameTheme.neonCyan, size: 24),
+              const SizedBox(width: 12),
+              Text(
+                '$soldiers soldados',
+                style: const TextStyle(
+                  color: GameTheme.neonCyan,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            color: titleColor,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            shadows: [Shadow(blurRadius: 12, color: titleColor)],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ==========================================
+  // FASE 1: PREGUNTA MATEMÁTICA
+  // ==========================================
+
+  Widget _buildQuestionPhase({required Key key}) {
+    final problem = widget
+        .controller
+        .levelProblems[widget.controller.currentChallengeIndex];
+    final question = problem.getMathQuestion(
+      widget.controller.challengeSoldiersCount,
+    );
+
+    return Column(
+      key: key,
+      children: [
+        const SizedBox(height: 24),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: GameTheme.slateBlue,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: GameTheme.neonCyan.withValues(alpha: 0.4),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: GameTheme.neonCyan.withValues(alpha: 0.15),
+                blurRadius: 20,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              const Icon(Icons.psychology, color: GameTheme.neonCyan, size: 40),
+              const SizedBox(height: 16),
+              Text(
+                question.text,
+                style: const TextStyle(
+                  color: GameTheme.textWhite,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
+        ...List.generate(3, (index) {
+          final option = question.options[index];
+          final isSelected = _selectedIndex == index;
+          final isCorrectOption = index == question.correctIndex;
+          final showResult = _selectedIndex != null;
+
+          Color bgColor;
+          Color borderColor;
+          Color textColor;
+          IconData? icon;
+
+          if (!showResult) {
+            bgColor = GameTheme.slateBlue;
+            borderColor = GameTheme.neonCyan.withValues(alpha: 0.3);
+            textColor = GameTheme.textWhite;
+            icon = null;
+          } else if (isCorrectOption) {
+            bgColor = GameTheme.neonGreen.withValues(alpha: 0.2);
+            borderColor = GameTheme.neonGreen;
+            textColor = GameTheme.neonGreen;
+            icon = Icons.check_circle;
+          } else if (isSelected && !_isCorrect!) {
+            bgColor = GameTheme.neonRed.withValues(alpha: 0.2);
+            borderColor = GameTheme.neonRed;
+            textColor = GameTheme.neonRed;
+            icon = Icons.cancel;
+          } else {
+            bgColor = GameTheme.slateBlue.withValues(alpha: 0.5);
+            borderColor = Colors.white.withValues(alpha: 0.1);
+            textColor = GameTheme.textGrey;
+            icon = null;
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _selectedIndex == null
+                      ? () => _onMathAnswerSelected(index)
+                      : null,
+                  borderRadius: BorderRadius.circular(16),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 18,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: borderColor,
+                        width: isSelected ? 3 : 1.5,
+                      ),
+                      boxShadow: showResult && isCorrectOption
+                          ? [
+                              BoxShadow(
+                                color: GameTheme.neonGreen.withValues(
+                                  alpha: 0.3,
+                                ),
+                                blurRadius: 16,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '$option',
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (icon != null)
+                          Icon(icon, color: textColor, size: 28),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  // ==========================================
+  // FASE 2: ELECCIÓN DE OPERACIÓN
+  // ==========================================
+
+  Widget _buildOperationPhase({required Key key}) {
+    final problem = widget
+        .controller
+        .levelProblems[widget.controller.currentChallengeIndex];
+    final choices = problem.getOperationChoices(widget.controller.mathResult);
+    final currentSoldiers = widget.controller.mathResult;
+
+    return Column(
+      key: key,
+      children: [
+        const SizedBox(height: 24),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: GameTheme.slateBlue,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: GameTheme.neonGreen.withValues(alpha: 0.4),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: GameTheme.neonGreen.withValues(alpha: 0.15),
+                blurRadius: 20,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              const Icon(Icons.star, color: GameTheme.neonGreen, size: 40),
+              const SizedBox(height: 12),
+              Text(
+                'Tienes $currentSoldiers soldados.',
+                style: const TextStyle(
+                  color: GameTheme.textWhite,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '¿Qué quieres hacer?',
+                style: TextStyle(
+                  color: GameTheme.neonGreen.withValues(alpha: 0.8),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
+        ...List.generate(2, (index) {
+          final choice = choices[index];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _onOperationSelected(index),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 20,
+                  ),
+                  decoration: BoxDecoration(
+                    color: GameTheme.slateBlue,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: GameTheme.neonGreen.withValues(alpha: 0.3),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: GameTheme.neonGreen.withValues(alpha: 0.1),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        choice.label,
+                        style: const TextStyle(
+                          color: GameTheme.neonGreen,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        choice.resultLabel,
+                        style: TextStyle(
+                          color: GameTheme.textWhite.withValues(alpha: 0.7),
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildProgressIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(5, (index) {
+        final isCompleted = index < widget.controller.currentChallengeIndex;
+        final isCurrent = index == widget.controller.currentChallengeIndex;
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: isCurrent ? 24 : 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: isCompleted
+                ? GameTheme.neonGreen
+                : isCurrent
+                ? GameTheme.neonCyan
+                : GameTheme.slateBlue,
+            borderRadius: BorderRadius.circular(5),
+            boxShadow: isCurrent
+                ? [
+                    BoxShadow(
+                      color: GameTheme.neonCyan.withValues(alpha: 0.5),
+                      blurRadius: 8,
+                    ),
+                  ]
+                : null,
+          ),
+        );
+      }),
     );
   }
 }

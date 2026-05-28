@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 enum GameStatus { idle, running, mathChallenge, bossBattle, victory, defeat }
 
+enum MathChallengePhase { question, operationChoice }
+
 /// Representa a un soldado individual del ejército del jugador.
 /// Contiene datos para micro-animaciones en el CustomPainter.
 class Soldier {
